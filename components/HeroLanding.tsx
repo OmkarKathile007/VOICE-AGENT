@@ -1,5 +1,5 @@
 // components/HeroLanding.tsx or app/page.tsx (For Next.js App Router)
-
+'use client'
 import Link from 'next/link';
 import { Timeline } from './ui/timeline';
 
@@ -126,7 +126,7 @@ const HeroLanding: React.FC = () => {
           
           {/* Action Button */}
           <Link 
-            href="/shop" 
+            href="/login" 
             className="px-5 py-2 text-base font-semibold text-black transition duration-300 rounded-full bg-green-400 hover:bg-green-500 shadow-xl"
           >
             Shop Shree Anna
