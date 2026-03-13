@@ -11,7 +11,7 @@ export const Sidebar = () => {
   const navItems = [
     // { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Mic, label: 'Assistant', path: '/agent/voice' }, // Matches your folder structure
-    { icon: ShoppingBag, label: 'Products', path: '/agent/products' },
+    { icon: ShoppingBag, label: 'Products', path: '/products' },
     { icon: History, label: 'History', path: '/agent/history' }, // You'll need to create this folder later
     { icon: ShoppingBag, label: 'My Listings', path: '/agent/listings' },
     { icon: Settings, label: 'Insights', path: '/agent/admin' },
@@ -39,7 +39,8 @@ export const Sidebar = () => {
             )}
           >
             <item.icon className="w-5 h-5" />
-            <span className="hidden md:block font-medium">{item.label}</span>
+            {/* <span className="hidden md:block font-medium">{item.label}</span> */}
+            <span className="font-medium">{item.label}</span>
           </Link>
         ))}
       </nav>

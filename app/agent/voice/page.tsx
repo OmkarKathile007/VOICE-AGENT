@@ -15,8 +15,8 @@ export default function AgentPage() {
       
       {/* Header */}
       <div className="text-center space-y-2 flex-none">
-        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-agri-400 to-cyan-400">
-          Krishi Assistant
+        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-cyan-200">
+          Krishi Your Voice Assistant
         </h1>
         <p className="text-slate-400 text-sm">
           {status === 'disconnected' 
