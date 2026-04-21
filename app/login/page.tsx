@@ -740,9 +740,15 @@ export default function RoleLoginI18n() {
     if (selectedRole === "Consumer") {
       // internal route
       router.push("/product");
-    } else if (selectedRole === "SHG") {
+    } else if (selectedRole === "Processor" ) {
+      window.location.href = "http://localhost:8081";
+    }
+    
+   
+    
+     else if (selectedRole === "SHG") {
       window.location.href = "https://shree-anna-certify.lovable.app";
-    } else if (selectedRole === "Startup" || selectedRole === "Processor") {
+    } else if (selectedRole === "Startup" ) {
       window.location.href = "https://krishi-sphere-nexus.lovable.app";
     } else {
       // FPO or any other fallback

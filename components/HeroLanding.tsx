@@ -117,6 +117,7 @@ const HeroLanding: React.FC = () => {
           
         <div className="flex items-center justify-between mx-auto max-w-7xl">
           {/* Platform Name/Logo */}
+          {/* <Link href="/"></Link> */}
           <Link 
             href="/" 
             className="text-3xl font-extrabold tracking-tight text-white transition duration-300 hover:text-green-400 drop-shadow-md"
