@@ -7,6 +7,8 @@ import React, { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Mic, Activity, Loader2 } from 'lucide-react';
 
+// main agent mic orb component with canvas wave animation and status badge
+
 type AgentStatus = 'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking';
 
 interface MicOrbProps {
