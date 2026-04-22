@@ -8,6 +8,22 @@ type VapiStatus = 'disconnected' | 'connecting' | 'listening' | 'thinking' | 'sp
 
 const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '');
 
+const DEVANAGARI_REGEX = /[\u0900-\u097F]/;
+const LEADING_SHORT_LATIN_WORD_BEFORE_DEVANAGARI = /^[A-Za-z]{1,4}\s+(?=[\u0900-\u097F])/;
+
+const sanitizeTranscriptText = (rawText: string) => {
+  const trimmed = rawText.trim();
+  if (!trimmed) return '';
+
+  // Common STT glitch for mixed language input:
+  // a short random Latin token appears right before Marathi (Devanagari) words.
+  if (DEVANAGARI_REGEX.test(trimmed)) {
+    return trimmed.replace(LEADING_SHORT_LATIN_WORD_BEFORE_DEVANAGARI, '').trim();
+  }
+
+  return trimmed;
+};
+
 export const useVapi = () => {
   const [status, setStatus] = useState<VapiStatus>('disconnected');
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
@@ -35,16 +51,19 @@ export const useVapi = () => {
     const onMessage = async (message: any) => {
       // 1. --- FIXED: Handle Transcripts with Deduplication ---
       if (message.type === 'transcript' && message.transcriptType === 'final') {
+        const cleanedTranscript = sanitizeTranscriptText(message.transcript || '');
+        if (!cleanedTranscript) return;
+
         setTranscript((prev) => {
           // Check if the last message is exactly the same as the new one
           const lastMsg = prev[prev.length - 1];
-          if (lastMsg && lastMsg.role === message.role && lastMsg.text === message.transcript) {
+          if (lastMsg && lastMsg.role === message.role && lastMsg.text === cleanedTranscript) {
             return prev; // Duplicate found, ignore it
           }
           // If unique, add it
           return [
             ...prev,
-            { role: message.role, text: message.transcript },
+            { role: message.role, text: cleanedTranscript },
           ];
         });
       }
@@ -136,7 +155,13 @@ export const useVapi = () => {
       vapi.stop();
     } else {
       setStatus('connecting');
-      vapi.start(process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID || '');
+      vapi.start(process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID || '', {
+        assistantOverrides: {
+          transcriber: {
+            language: 'multi',
+          },
+        },
+      } as any);
     }
   }, [isSessionActive]);
 
