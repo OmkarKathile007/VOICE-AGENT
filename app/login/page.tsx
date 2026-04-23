@@ -357,13 +357,13 @@
 //           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
 //             <div>
 //               <label htmlFor="identifier" className="block text-sm font-medium text-[#204c20]">
-//                 {ui.emailOrMobile}
+//                 {ui.emailOnly}
 //               </label>
 //               <input
 //                 id="identifier"
-//                 value={identifier}
-//                 onChange={(e) => setIdentifier(e.target.value)}
-//                 placeholder="name@domain.com or +91 9xxxxxxxxx"
+//                 value={email}
+//                 onChange={(e) => setEmail(e.target.value)}
+//                 placeholder={ui.emailPlaceholder}
 //                 className="mt-2 block w-full rounded-md border border-[#cde8cd] px-4 py-3 text-sm focus:ring-2 focus:ring-[#4CAF50]/60 focus:outline-none"
 //               />
 //             </div>
@@ -456,6 +456,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isSupabaseConfigured, requestEmailOtp, verifyEmailOtp } from "@/lib/emailOtpAuth";
 
 /* --- Types --- */
 type Lang = "EN" | "HI" | "MR" | "TE";
@@ -470,22 +471,23 @@ const DICT: Record<
       chooseRole: string;
       login: string;
       continueAs: string;
-      emailOrMobile: string;
-      loginWithOtp: string;
-      password: string;
+      emailOnly: string;
+      emailPlaceholder: string;
       requestOtp: string;
-      forgot: string;
       loginBtn: (role: string) => string;
       register: string;
       terms: string;
       proTipTitle: string;
       needHelpCall: (phone: string) => string;
       validation: {
-        enterIdentifier: string;
+        enterEmail: string;
+        invalidEmail: string;
         enterOtp: string;
-        passwordShort: string;
       };
       otpSentMsg: (target: string) => string;
+      otpVerifiedMsg: string;
+      otpErrorMsg: string;
+      missingConfigMsg: string;
     };
     roles: Record<
       RoleKey,
@@ -503,22 +505,23 @@ const DICT: Record<
       chooseRole: "Choose your role to continue on Shree Anna",
       login: "Login",
       continueAs: "Continue as",
-      emailOrMobile: "Email or mobile",
-      loginWithOtp: "Login with OTP",
-      password: "Password",
+      emailOnly: "Email",
+      emailPlaceholder: "name@domain.com",
       requestOtp: "Request OTP",
-      forgot: "Forgot?",
       loginBtn: (role) => `Login as ${role}`,
       register: "Register / Create FPO",
       terms: "Terms & Privacy",
       proTipTitle: "Pro tip:",
       needHelpCall: (phone) => `Need help? Call ${phone}`,
       validation: {
-        enterIdentifier: "Please enter your email or mobile number.",
-        enterOtp: "Enter the 4–6 digit OTP.",
-        passwordShort: "Password must be at least 6 characters.",
+        enterEmail: "Please enter your email address.",
+        invalidEmail: "Enter a valid email address.",
+        enterOtp: "Enter the 6 digit OTP.",
       },
-      otpSentMsg: (target) => `OTP sent to ${target} (mock)`,
+      otpSentMsg: (target) => `OTP sent to ${target}.`,
+      otpVerifiedMsg: "Email verified successfully.",
+      otpErrorMsg: "OTP verification failed. Please try again.",
+      missingConfigMsg: "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     },
     roles: {
       FPO: {
@@ -555,22 +558,23 @@ const DICT: Record<
       chooseRole: "आगे बढ़ने के लिए अपनी भूमिका चुनें",
       login: "लॉगिन",
       continueAs: "के रूप में जारी रखें",
-      emailOrMobile: "ईमेल या मोबाइल",
-      loginWithOtp: "OTP से लॉगिन",
-      password: "पासवर्ड",
+      emailOnly: "ईमेल",
+      emailPlaceholder: "name@domain.com",
       requestOtp: "OTP अनुरोध करें",
-      forgot: "भूल गए?",
       loginBtn: (role) => `${role} के रूप में लॉगिन`,
       register: "रजिस्टर / FPO बनाएं",
       terms: "नियम और गोपनीयता",
       proTipTitle: "प्रो टिप:",
       needHelpCall: (phone) => `मदद चाहिए? कॉल करें ${phone}`,
       validation: {
-        enterIdentifier: "कृपया अपना ईमेल या मोबाइल नंबर दर्ज करें।",
-        enterOtp: "4–6 अंकों का OTP दर्ज करें।",
-        passwordShort: "पासवर्ड कम से कम 6 अंकों का होना चाहिए।",
+        enterEmail: "कृपया अपना ईमेल दर्ज करें।",
+        invalidEmail: "मान्य ईमेल दर्ज करें।",
+        enterOtp: "6 अंकों का OTP दर्ज करें।",
       },
-      otpSentMsg: (target) => `OTP ${target} पर भेजा गया (नमूना)`,
+      otpSentMsg: (target) => `OTP ${target} पर भेजा गया।`,
+      otpVerifiedMsg: "ईमेल सफलतापूर्वक सत्यापित हुआ।",
+      otpErrorMsg: "OTP सत्यापन असफल।",
+      missingConfigMsg: "Supabase कॉन्फ़िगर नहीं है।",
     },
     roles: {
       FPO: { title: "किसान उत्पादक संगठन (FPO)", subtitle: "किसानों की आय और बाजार पहुंच बढ़ाने के लिए समूह", note: "FPOs: थोक खरीद डैशबोर्ड और सर्टिफिकेशन समर्थन के लिए रजिस्टर करें।" },
@@ -587,22 +591,23 @@ const DICT: Record<
       chooseRole: "पुढे जाण्यासाठी आपली भूमिका निवडा",
       login: "लॉगिन",
       continueAs: "या म्हणून सुरू ठेवा",
-      emailOrMobile: "ईमेल किंवा मोबाईल",
-      loginWithOtp: "OTP ने लॉगिन",
-      password: "पासवर्ड",
+      emailOnly: "ईमेल",
+      emailPlaceholder: "name@domain.com",
       requestOtp: "OTP विनंती करा",
-      forgot: "विसरलात?",
       loginBtn: (role) => `${role} म्हणून लॉगिन`,
       register: "नोंदणी / FPO तयार करा",
       terms: "नियम व गोपनीयता",
       proTipTitle: "टिप:",
       needHelpCall: (phone) => `मदतीसाठी कॉल करा ${phone}`,
       validation: {
-        enterIdentifier: "कृपया आपला ईमेल किंवा मोबाईल नंबर प्रविष्ट करा.",
-        enterOtp: "4–6 अंकांची OTP प्रविष्ट करा.",
-        passwordShort: "पासवर्ड किमान 6 अक्षरांचा असावा.",
+        enterEmail: "कृपया आपला ईमेल प्रविष्ट करा.",
+        invalidEmail: "वैध ईमेल प्रविष्ट करा.",
+        enterOtp: "6 अंकी OTP प्रविष्ट करा.",
       },
-      otpSentMsg: (target) => `OTP ${target} वर पाठवले (नमुना)`,
+      otpSentMsg: (target) => `OTP ${target} वर पाठवले.`,
+      otpVerifiedMsg: "ईमेल यशस्वीरित्या सत्यापित झाले.",
+      otpErrorMsg: "OTP सत्यापन अयशस्वी.",
+      missingConfigMsg: "Supabase कॉन्फिगर केलेले नाही.",
     },
     roles: {
       FPO: {
@@ -639,22 +644,23 @@ const DICT: Record<
       chooseRole: "కొనసాగడానికి మీ పాత్రను ఎంచుకోండి",
       login: "లాగిన్",
       continueAs: "ఈ పాత్రగా కొనసాగండి",
-      emailOrMobile: "ఈమెయిల్ లేదా మొబైల్",
-      loginWithOtp: "OTP తో లాగిన్",
-      password: "పాస్వర్డ్",
+      emailOnly: "ఈమెయిల్",
+      emailPlaceholder: "name@domain.com",
       requestOtp: "OTP అభ్యర్థించండి",
-      forgot: "మర్చిపోయారా?",
       loginBtn: (role) => `${role}గా లాగిన్`,
       register: "రాజిస్టర్ / FPO సృష్టించండి",
       terms: "నియమాలు & గోప్యత",
       proTipTitle: "ప్రో చిట్కా:",
       needHelpCall: (phone) => `సహాయం కావాలా? కాల్ చేయండి ${phone}`,
       validation: {
-        enterIdentifier: "దయచేసి మీ ఇమెయిల్ లేదా మొబైల్ నంబర్ ఇవ్వండి.",
-        enterOtp: "4–6 అంకెల OTP ను నమోదు చేయండి.",
-        passwordShort: "పాస్వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి.",
+        enterEmail: "దయచేసి మీ ఈమెయిల్ ఇవ్వండి.",
+        invalidEmail: "చెల్లుబాటు అయ్యే ఈమెయిల్ ఇవ్వండి.",
+        enterOtp: "6 అంకెల OTP నమోదు చేయండి.",
       },
-      otpSentMsg: (target) => `OTPను ${target} కు పంపించబడింది (మాక్)`,
+      otpSentMsg: (target) => `OTPను ${target} కు పంపించబడింది.`,
+      otpVerifiedMsg: "ఈమెయిల్ విజయవంతంగా ధృవీకరించబడింది.",
+      otpErrorMsg: "OTP ధృవీకరణ విఫలమైంది.",
+      missingConfigMsg: "Supabase కాన్ఫిగర్ చేయలేదు.",
     },
     roles: {
       FPO: {
@@ -710,27 +716,33 @@ export default function RoleLoginI18n() {
 
   const ROLE_KEYS: RoleKey[] = ["FPO", "SHG", "Startup", "Processor", "Consumer"];
   const [selectedRole, setSelectedRole] = useState<RoleKey>("FPO");
-  const [useOtp, setUseOtp] = useState(true);
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [password, setPassword] = useState("");
+  const [otpRequested, setOtpRequested] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
   const ui = useMemo(() => dict.ui, [dict]);
 
   const onSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError(null);
-    if (!identifier.trim()) return setError(ui.validation.enterIdentifier);
-    if (useOtp && !/^\d{4,6}$/.test(otp)) return setError(ui.validation.enterOtp);
-    if (!useOtp && password.length < 6) return setError(ui.validation.passwordShort);
+    if (!email.trim()) return setError(ui.validation.enterEmail);
+    if (!isValidEmail(email)) return setError(ui.validation.invalidEmail);
+    if (!/^\d{6}$/.test(otp)) return setError(ui.validation.enterOtp);
+    if (!isSupabaseConfigured) return setError(ui.missingConfigMsg);
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
+    const { error: verifyError } = await verifyEmailOtp(email.trim(), otp.trim());
     setLoading(false);
 
-    // mock alert kept as-is
-    alert(`${ui.loginBtn(dict.roles[selectedRole].title)} — ${identifier}`);
+    if (verifyError) {
+      setError(ui.otpErrorMsg);
+      return;
+    }
+
+    alert(ui.otpVerifiedMsg);
 
     // Role-based redirect logic:
     // Consumer -> internal /product
@@ -757,12 +769,22 @@ export default function RoleLoginI18n() {
   };
 
   const sendOtp = async () => {
-    if (!identifier.trim()) return setError(ui.validation.enterIdentifier);
+    if (!email.trim()) return setError(ui.validation.enterEmail);
+    if (!isValidEmail(email)) return setError(ui.validation.invalidEmail);
+    if (!isSupabaseConfigured) return setError(ui.missingConfigMsg);
+
     setError(null);
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
+    const { error: otpError } = await requestEmailOtp(email.trim());
     setLoading(false);
-    alert(ui.otpSentMsg(identifier));
+
+    if (otpError) {
+      setError(otpError);
+      return;
+    }
+
+    setOtpRequested(true);
+    alert(ui.otpSentMsg(email));
   };
 
   return (
@@ -838,69 +860,38 @@ export default function RoleLoginI18n() {
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
               <label htmlFor="identifier" className="block text-sm font-medium text-[#204c20]">
-                {ui.emailOrMobile}
+                {ui.emailOnly}
               </label>
               <input
                 id="identifier"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="name@domain.com or +91 9xxxxxxxxx"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={ui.emailPlaceholder}
                 className="mt-2 block w-full rounded-md border border-[#cde8cd] px-4 py-3 text-sm focus:ring-2 focus:ring-[#4CAF50]/60 focus:outline-none"
               />
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="ml-auto text-xs text-[#5b7c5b]">{ui.needHelpCall(PHONE)}</div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+              <input
+                id="otp"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="Enter OTP"
+                className="sm:col-span-2 w-full rounded-md border border-[#cde8cd] px-4 py-3 text-sm focus:ring-2 focus:ring-[#4CAF50]/60"
+              />
               <button
                 type="button"
-                onClick={() => setUseOtp(true)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${useOtp ? "bg-[#4CAF50] text-white" : "bg-[#e9f5e9] text-[#204c20]"}`}
+                onClick={sendOtp}
+                disabled={loading}
+                className="sm:col-span-1 w-full rounded-md bg-[#4CAF50] text-white px-4 py-3 text-sm font-medium hover:brightness-95 transition"
               >
-                {ui.loginWithOtp}
+                {loading ? "Sending..." : ui.requestOtp}
               </button>
-              <button
-                type="button"
-                onClick={() => setUseOtp(false)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${!useOtp ? "bg-[#4CAF50] text-white" : "bg-[#e9f5e9] text-[#204c20]"}`}
-              >
-                {ui.password}
-              </button>
-              <div className="ml-auto text-xs text-[#5b7c5b]">{ui.needHelpCall(PHONE)}</div>
             </div>
 
-            {useOtp ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                <input
-                  id="otp"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter OTP"
-                  className="sm:col-span-2 w-full rounded-md border border-[#cde8cd] px-4 py-3 text-sm focus:ring-2 focus:ring-[#4CAF50]/60"
-                />
-                <button
-                  type="button"
-                  onClick={sendOtp}
-                  disabled={loading}
-                  className="sm:col-span-1 w-full rounded-md bg-[#4CAF50] text-white px-4 py-3 text-sm font-medium hover:brightness-95 transition"
-                >
-                  {loading ? "Sending..." : ui.requestOtp}
-                </button>
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-[#204c20]">{ui.password}</label>
-                <div className="relative mt-2">
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="********"
-                    className="w-full rounded-md border border-[#cde8cd] px-4 py-3 text-sm focus:ring-2 focus:ring-[#4CAF50]/60"
-                  />
-                  <button type="button" onClick={() => alert("Password reset (mock)")} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#4CAF50] underline">{ui.forgot}</button>
-                </div>
-              </div>
-            )}
+            {otpRequested && <div className="text-xs text-[#2E7D32]">{ui.otpSentMsg(email)}</div>}
 
             {error && <div className="text-sm text-red-600">{error}</div>}
 
