@@ -20,6 +20,14 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Login Mode
+
+The login screen uses role-based login with:
+
+- Email **or** phone number input
+- Password input
+- Existing role-based redirect flow after successful validation
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
