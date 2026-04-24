@@ -187,8 +187,22 @@ export default function RoleLoginI18n() {
     if (password.length < 6) return setError(ui.validation.passwordShort);
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 350));
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: identifier.trim(),
+        password,
+        role: selectedRole,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
+
+    if (!res.ok) {
+      setError(data?.error || "Login failed. Please try again.");
+      return;
+    }
 
     if (selectedRole === "Consumer") {
       router.push("/product");

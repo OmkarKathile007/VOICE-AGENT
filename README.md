@@ -28,6 +28,21 @@ The login screen uses role-based login with:
 - Password input
 - Existing role-based redirect flow after successful validation
 
+## Login API
+
+Login now validates credentials on the backend route: `POST /api/login`.
+
+### Default demo credentials
+- `demo@shreeanna.com` / `password123`
+- `+919876543210` / `password123`
+
+### Optional custom users
+You can override demo users with `.env.local`:
+
+```bash
+AUTH_USERS_JSON=[{"identifier":"admin@example.com","password":"secret123","roles":["FPO","SHG"]}]
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
