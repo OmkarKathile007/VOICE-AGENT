@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { Timeline } from './ui/timeline';
 
 // NOTE: Ensure 'large (1).mp4' is in your 'public/videos/' folder.
-//const L1_VIDEO_URL = '/landingpage.mp4'; 
-const L1_VIDEO_URL = '/krishi-shetra/video/landingpage.mp4'; 
+const L1_VIDEO_URL = '/landingpage.mp4'; 
+// const L1_VIDEO_URL = '/landingpage.mp4  '; // Placeholder video URL, replace with actual path
 
 const HeroLanding: React.FC = () => {
   const data = [
