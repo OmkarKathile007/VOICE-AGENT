@@ -3,12 +3,21 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { MicOrb } from '@/components/MicOrb';
+import { VoicePoweredOrb } from '@/components/ui/voice-powered-orb';
 import { TranscriptPanel } from '@/components/TranscriptPanel';
 import { NeonButton } from '@/components/NeonButton';
-import { XCircle, Loader2, Cpu, Zap } from 'lucide-react';
+import { XCircle, Loader2, Cpu, Zap, Mic } from 'lucide-react';
 import { useVapi } from '@/hooks/useVapi';
 import { useRouter } from 'next/navigation';
+
+// Map Vapi status → hue shift for the orb (degrees)
+const STATUS_HUE: Record<string, number> = {
+  disconnected: 0,    // purple (default)
+  connecting:   55,   // yellow
+  listening:    140,  // green
+  thinking:     270,  // violet
+  speaking:     185,  // cyan
+};
 
 // ── Floating particle canvas ────────────────────────────────────────────
 function ParticleCanvas() {
@@ -178,9 +187,29 @@ export default function AgentPage() {
             }}
           />
 
-          <div className="relative z-10 hover:scale-[1.02] transition-transform duration-500">
-            <MicOrb status={status} onClick={toggleCall} />
-          </div>
+          <button
+            onClick={toggleCall}
+            aria-label={`Voice agent: ${status}`}
+            className="relative z-10 w-56 h-56 rounded-full hover:scale-[1.03] active:scale-95 transition-transform duration-300 focus:outline-none"
+            style={{ filter: status !== 'disconnected' ? 'drop-shadow(0 0 32px rgba(99,102,241,0.45))' : 'none' }}
+          >
+            <VoicePoweredOrb
+              hue={STATUS_HUE[status] ?? 0}
+              enableVoiceControl={status === 'listening'}
+              className="rounded-full overflow-hidden"
+            />
+
+            {/* Mic icon overlay — centered inside the orb */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              {status === 'connecting' ? (
+                <Loader2 className="w-10 h-10 text-white/80 animate-spin drop-shadow-lg" />
+              ) : status === 'speaking' ? (
+                <Zap className="w-10 h-10 text-white/90 animate-pulse drop-shadow-lg" />
+              ) : (
+                <Mic className="w-10 h-10 text-white/90 drop-shadow-lg" />
+              )}
+            </div>
+          </button>
 
           {status === 'connecting' && (
             <div className="absolute bottom-4 flex items-center gap-3 px-4 py-2 rounded-xl bg-yellow-950/40 border border-yellow-800/40 backdrop-blur-md text-yellow-300 text-xs font-mono tracking-wider animate-pulse">
