@@ -1077,6 +1077,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useCart } from '@/context/CartContext';
+import { productsApi, type Product as ApiProduct } from '@/lib/api';
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -1116,121 +1118,69 @@ const StarIcon = ({ filled }: { filled?: boolean }) => (
 );
 
 
-// ── Types ───────────────────────────────────────────────────────────────────────
-
-type Product = {
-  id: string;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  imageUrl: string;
-  category: string;
-  origin?: string;
-  badge?: string;
-  rating: number;
-  reviews: number;
-};
-
 type Category = string;
 
-// ── Mock Data ───────────────────────────────────────────────────────────────────
-
-const allProducts: Product[] = [
-  { id: 'p1', name: 'Organic Foxtail Millet (Kangni)', price: 150, originalPrice: 180, category: 'Millets', imageUrl: '/foxtail1.jpg', origin: 'Rajasthan', badge: '15% OFF', rating: 4.8, reviews: 124 },
-  { id: 'p2', name: 'Pearl Millet (Bajra) - Premium Quality', price: 120, category: 'Millets', imageUrl: '/pearlmillet.jpg', origin: 'Gujarat', badge: 'Bestseller', rating: 4.9, reviews: 312 },
-  { id: 'p3', name: 'Sorghum (Jowar) Flour - Stone Ground', price: 90, originalPrice: 110, category: 'Flours', imageUrl: '/jowar.jpg', origin: 'Maharashtra', rating: 4.6, reviews: 89 },
-  { id: 'p4', name: 'Cold-Pressed Coconut Oil - 1 Litre', price: 350, category: 'Oils', imageUrl: '/coconutoil.jpg', origin: 'Kerala', badge: 'New', rating: 4.7, reviews: 45 },
-  { id: 'p5', name: 'Natural Forest Honey - Raw & Unprocessed', price: 450, category: 'Honey', imageUrl: '/honey.jpg', origin: 'Uttarakhand', rating: 4.9, reviews: 210 },
-  { id: 'p6', name: 'Organic Ragi (Finger Millet) - Unpolished', price: 130, category: 'Millets', imageUrl: '/ragi.jpg', origin: 'Karnataka', badge: 'Organic', rating: 4.8, reviews: 178 },
-  { id: 'p7', name: 'Kodo Millet - Diabetic Friendly', price: 160, originalPrice: 200, category: 'Millets', imageUrl: '/kodo.jpg', origin: 'Madhya Pradesh', badge: '20% OFF', rating: 4.5, reviews: 67 },
-  { id: 'p8', name: 'Groundnut Oil (Cold-Pressed) - 1 Litre', price: 400, category: 'Oils', imageUrl: '/groundnut.jpg', origin: 'Andhra Pradesh', rating: 4.8, reviews: 156 },
-];
-
-const categories: Category[] = ['All Products', 'Millets', 'Flours', 'Oils', 'Honey', 'Spices'];
-
-const sortOptions = [
-  'Relevance', 'Trending', 'Latest arrivals', 'Price: Low to high', 'Price: High to low',
-];
+const CATEGORIES: Category[] = ['All Products', 'Millets', 'Flours', 'Oils', 'Honey', 'Spices'];
+const SORT_OPTIONS = ['Relevance', 'Trending', 'Latest arrivals', 'Price: Low to high', 'Price: High to low'];
 
 // ── Product Card ─────────────────────────────────────────────────────────────────
 
-const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
+const ProductCard: React.FC<{
+  product: ApiProduct;
+  onClick: () => void;
+  onAddToCart: (e: React.MouseEvent) => void;
+  inCart: boolean;
+}> = ({ product, onClick, onAddToCart, inCart }) => {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="group cursor-pointer flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-emerald-200"
-    >
-      {/* Image Container */}
+    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      className="group cursor-pointer flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-emerald-200">
       <div className="relative aspect-square bg-slate-50 p-6 flex items-center justify-center overflow-hidden">
-        {/* Badge */}
         {product.badge && (
           <div className="absolute top-4 left-4 z-10 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
             {product.badge}
           </div>
         )}
-        
-        {/* Heart/Wishlist Button (Decorative) */}
-        <button className="absolute top-4 right-4 z-10 p-2 bg-white rounded-full shadow-sm text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
-           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+        <button className="absolute top-4 right-4 z-10 p-2 bg-white rounded-full shadow-sm text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+          onClick={e => e.stopPropagation()}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </button>
-
-        <img
-          src={product.imageUrl}
-          alt={product.name}
+        <img src={product.imageUrl} alt={product.name}
           className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110 mix-blend-multiply"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = `https://placehold.co/400x400/f8fafc/0f172a?text=${encodeURIComponent(product.name.split(' ').slice(0, 2).join('+'))}`;
-          }}
-        />
+          onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/400x400/f8fafc/0f172a?text=${encodeURIComponent(product.name.split(' ').slice(0, 2).join('+'))}`; }} />
       </div>
-
-      {/* Content */}
       <div className="p-5 flex flex-col flex-grow">
-        {/* Category & Origin */}
         <div className="flex justify-between items-center mb-2">
-           <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">{product.category}</span>
-           {product.origin && (
-             <span className="text-xs text-slate-400 flex items-center gap-1">
-               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-               {product.origin}
-             </span>
-           )}
+          <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">{product.category}</span>
+          {product.origin && (
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              {product.origin}
+            </span>
+          )}
         </div>
-
-        {/* Title */}
-        <h3 className="text-base font-bold text-slate-800 leading-tight mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors">
-          {product.name}
-        </h3>
-
-        {/* Rating */}
+        <h3 className="text-base font-bold text-slate-800 leading-tight mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors">{product.name}</h3>
         <div className="flex items-center gap-1 mb-4">
           <div className="flex text-amber-400">
-            {[...Array(5)].map((_, i) => (
-              <StarIcon key={i} filled={i < Math.floor(product.rating)} />
-            ))}
+            {[...Array(5)].map((_, i) => <StarIcon key={i} filled={i < Math.floor(product.rating)} />)}
           </div>
           <span className="text-xs font-medium text-slate-500 ml-1">{product.rating} <span className="text-slate-400 font-normal">({product.reviews})</span></span>
         </div>
-
         <div className="mt-auto flex items-center justify-between">
-          {/* Price */}
           <div className="flex flex-col">
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-extrabold text-slate-900">₹{product.price.toFixed(0)}</span>
               <span className="text-xs text-slate-500 font-medium">/ kg</span>
             </div>
-            {product.originalPrice && (
-              <span className="text-xs text-slate-400 line-through">₹{product.originalPrice.toFixed(0)}</span>
-            )}
+            {product.originalPrice && <span className="text-xs text-slate-400 line-through">₹{product.originalPrice.toFixed(0)}</span>}
           </div>
-
-          {/* Add to Cart Button */}
-          <button className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${hovered ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'bg-emerald-50 text-emerald-600'}`}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <button onClick={onAddToCart}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${inCart ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : hovered ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-emerald-50 text-emerald-600'}`}>
+            {inCart
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            }
           </button>
         </div>
       </div>
@@ -1238,29 +1188,34 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
   );
 };
 
-
 // ── Main Component ───────────────────────────────────────────────────────────────
 
 export default function ProdDisplay() {
   const router = useRouter();
+  const { addToCart, isInCart, totalItems, totalAmount } = useCart();
+  const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [selectedCollection, setSelectedCollection] = useState<Category>('All Products');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortOrder, setSortOrder] = useState(sortOptions[0]);
+  const [sortOrder, setSortOrder] = useState(SORT_OPTIONS[0]);
+
+  useEffect(() => {
+    productsApi.getAll().then(data => {
+      setAllProducts(data);
+      setLoadingProducts(false);
+    }).catch(() => setLoadingProducts(false));
+  }, []);
 
   const filteredProducts = useMemo(() => {
     let products = [...allProducts];
-    if (selectedCollection !== 'All Products') {
-      products = products.filter(p => p.category === selectedCollection);
-    }
-    if (searchTerm) {
-      products = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    }
+    if (selectedCollection !== 'All Products') products = products.filter(p => p.category === selectedCollection);
+    if (searchTerm) products = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
     switch (sortOrder) {
       case 'Price: Low to high': products.sort((a, b) => a.price - b.price); break;
       case 'Price: High to low': products.sort((a, b) => b.price - a.price); break;
     }
     return products;
-  }, [selectedCollection, searchTerm, sortOrder]);
+  }, [allProducts, selectedCollection, searchTerm, sortOrder]);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -1308,14 +1263,17 @@ export default function ProdDisplay() {
               <button className="text-slate-600 hover:text-emerald-600 transition-colors hidden sm:block">
                 <UserIcon />
               </button>
-              <button className="relative text-slate-600 hover:text-emerald-600 transition-colors flex items-center gap-2">
+              <button onClick={() => router.push('/checkout')}
+                className="relative text-slate-600 hover:text-emerald-600 transition-colors flex items-center gap-2">
                 <div className="relative">
                   <CartIcon />
-                  <span className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">
-                    3
-                  </span>
+                  {totalItems > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">
+                      {totalItems}
+                    </span>
+                  )}
                 </div>
-                <span className="hidden sm:block text-sm font-bold text-slate-800">₹850</span>
+                {totalItems > 0 && <span className="hidden sm:block text-sm font-bold text-slate-800">₹{totalAmount.toFixed(0)}</span>}
               </button>
             </div>
           </div>
@@ -1345,7 +1303,7 @@ export default function ProdDisplay() {
                  onChange={(e) => setSortOrder(e.target.value)}
                  className="appearance-none bg-white border border-slate-300 text-slate-700 py-2.5 pl-4 pr-10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer shadow-sm"
                >
-                 {sortOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                 {SORT_OPTIONS.map((o: string) => <option key={o} value={o}>{o}</option>)}
                </select>
                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"></path></svg>
@@ -1358,11 +1316,11 @@ export default function ProdDisplay() {
         <div className="flex flex-col lg:flex-row gap-8">
           
           {/* Sidebar Filters */}
-          <aside className="w-full lg:w-64 flex-shrink-0">
+          <aside className="w-full lg:w-64 shrink-0">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-28">
               <h2 className="text-base font-bold text-slate-900 mb-4 pb-4 border-b border-slate-100">Categories</h2>
               <ul className="space-y-2">
-                {categories.map((cat) => {
+                {CATEGORIES.map((cat: string) => {
                   const isActive = selectedCollection === cat;
                   return (
                     <li key={cat}>
@@ -1389,7 +1347,7 @@ export default function ProdDisplay() {
               </ul>
 
               {/* Promotional Banner in Sidebar */}
-              <div className="mt-8 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl p-5 text-white relative overflow-hidden">
+              <div className="mt-8 bg-linear-to-br from-emerald-500 to-emerald-700 rounded-xl p-5 text-white relative overflow-hidden">
                  <div className="absolute top-0 right-0 opacity-10 transform translate-x-4 -translate-y-4">
                     <LeafIcon />
                  </div>
@@ -1404,13 +1362,31 @@ export default function ProdDisplay() {
 
           {/* Product Grid */}
           <div className="flex-1">
-            {filteredProducts.length > 0 ? (
+            {loadingProducts ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden animate-pulse">
+                    <div className="aspect-square bg-slate-100" />
+                    <div className="p-5 space-y-3">
+                      <div className="h-3 bg-slate-100 rounded w-1/3" />
+                      <div className="h-4 bg-slate-100 rounded w-3/4" />
+                      <div className="h-3 bg-slate-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard 
-                    key={product.id} 
-                    product={product} 
-                    onClick={() => router.push(`/products/${product.id}`)} 
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onClick={() => router.push(`/products/${product.id}`)}
+                    onAddToCart={(e) => {
+                      e.stopPropagation();
+                      addToCart({ id: product.id, name: product.name, price: product.price, imageUrl: product.imageUrl, category: product.category });
+                    }}
+                    inCart={isInCart(product.id)}
                   />
                 ))}
               </div>
@@ -1421,7 +1397,7 @@ export default function ProdDisplay() {
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-2">No products found</h3>
                 <p className="text-slate-500 max-w-md mb-6">
-                  We couldn't find any produce matching "{searchTerm}". Try checking your spelling or clearing the filters.
+                  We couldn't find any produce matching &quot;{searchTerm}&quot;. Try checking your spelling or clearing the filters.
                 </p>
                 <button
                   onClick={() => { setSearchTerm(''); setSelectedCollection('All Products'); }}
