@@ -1,2 +1,2 @@
 *.mp4 filter=lfs diff=lfs merge=lfs -text
-public/landingpage.mp4 filter=lfs diff=lfs merge=lfs -text
+frontend/public/landingpage.mp4 filter=lfs diff=lfs merge=lfs -text

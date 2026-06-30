@@ -1079,6 +1079,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { productsApi, type Product as ApiProduct } from '@/lib/api';
+import PosterCarousel from '@/components/PosterCarousel';
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -1128,60 +1129,133 @@ const SORT_OPTIONS = ['Relevance', 'Trending', 'Latest arrivals', 'Price: Low to
 const ProductCard: React.FC<{
   product: ApiProduct;
   onClick: () => void;
-  onAddToCart: (e: React.MouseEvent) => void;
-  inCart: boolean;
-}> = ({ product, onClick, onAddToCart, inCart }) => {
-  const [hovered, setHovered] = useState(false);
+}> = ({ product, onClick }) => {
+  const { addToCart, isInCart, getQty, setQty } = useCart();
+  const [wished, setWished] = useState(false);
+
+  const inCart = isInCart(product.id);
+  const qty = getQty(product.id);
+  const outOfStock = product.inStock === false;
+
+  const discount =
+    product.originalPrice && product.originalPrice > product.price
+      ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+      : 0;
+  // The seed `badge` sometimes carries a discount string ("15% OFF"); only show it
+  // as a label chip when it's a real label (Bestseller, Organic, New…).
+  const labelBadge = product.badge && !/off|%/i.test(product.badge) ? product.badge : null;
+
+  const handleAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToCart({ id: product.id, name: product.name, price: product.price, imageUrl: product.imageUrl, category: product.category });
+  };
+  const inc = (e: React.MouseEvent) => { e.stopPropagation(); setQty(product.id, qty + 1); };
+  const dec = (e: React.MouseEvent) => { e.stopPropagation(); setQty(product.id, qty - 1); };
 
   return (
-    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      className="group cursor-pointer flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-emerald-200">
-      <div className="relative aspect-square bg-slate-50 p-6 flex items-center justify-center overflow-hidden">
-        {product.badge && (
-          <div className="absolute top-4 left-4 z-10 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-            {product.badge}
+    <div
+      onClick={onClick}
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-[0_16px_40px_-16px_rgba(16,185,129,0.35)]"
+    >
+      {/* ── Image ── */}
+      <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-linear-to-br from-slate-50 to-emerald-50/50 p-6">
+        {/* Badges */}
+        <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
+          {discount > 0 && (
+            <span className="rounded-full bg-rose-500 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-sm">
+              {discount}% OFF
+            </span>
+          )}
+          {labelBadge && (
+            <span className="rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+              {labelBadge}
+            </span>
+          )}
+        </div>
+
+        {/* Wishlist */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setWished((w) => !w); }}
+          aria-label="Add to wishlist"
+          className={`absolute right-3 top-3 z-10 rounded-full p-2 shadow-sm backdrop-blur-sm transition-all ${
+            wished ? 'bg-rose-50 text-rose-500' : 'bg-white/90 text-slate-400 hover:text-rose-500'
+          }`}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill={wished ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+        </button>
+
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="h-full w-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
+          onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/400x400/f8fafc/0f172a?text=${encodeURIComponent(product.name.split(' ').slice(0, 2).join('+'))}`; }}
+        />
+
+        {outOfStock && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
+            <span className="rounded-full bg-slate-900/80 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white">Out of Stock</span>
           </div>
         )}
-        <button className="absolute top-4 right-4 z-10 p-2 bg-white rounded-full shadow-sm text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-          onClick={e => e.stopPropagation()}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
-        <img src={product.imageUrl} alt={product.name}
-          className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110 mix-blend-multiply"
-          onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/400x400/f8fafc/0f172a?text=${encodeURIComponent(product.name.split(' ').slice(0, 2).join('+'))}`; }} />
       </div>
-      <div className="p-5 flex flex-col flex-grow">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">{product.category}</span>
+
+      {/* ── Body ── */}
+      <div className="flex grow flex-col p-4 sm:p-5">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">{product.category}</span>
           {product.origin && (
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               {product.origin}
             </span>
           )}
         </div>
-        <h3 className="text-base font-bold text-slate-800 leading-tight mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors">{product.name}</h3>
-        <div className="flex items-center gap-1 mb-4">
-          <div className="flex text-amber-400">
-            {[...Array(5)].map((_, i) => <StarIcon key={i} filled={i < Math.floor(product.rating)} />)}
-          </div>
-          <span className="text-xs font-medium text-slate-500 ml-1">{product.rating} <span className="text-slate-400 font-normal">({product.reviews})</span></span>
+
+        <h3 className="mb-2 line-clamp-2 min-h-[2.5rem] text-[15px] font-bold leading-snug text-slate-800 transition-colors group-hover:text-emerald-700">
+          {product.name}
+        </h3>
+
+        {/* Rating */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5">
+            <StarIcon filled />
+            <span className="text-xs font-bold text-emerald-700">{product.rating}</span>
+          </span>
+          <span className="text-xs text-slate-400">{product.reviews.toLocaleString('en-IN')} reviews</span>
         </div>
-        <div className="mt-auto flex items-center justify-between">
-          <div className="flex flex-col">
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-extrabold text-slate-900">₹{product.price.toFixed(0)}</span>
-              <span className="text-xs text-slate-500 font-medium">/ kg</span>
-            </div>
-            {product.originalPrice && <span className="text-xs text-slate-400 line-through">₹{product.originalPrice.toFixed(0)}</span>}
+
+        {/* Price + Action pinned to bottom */}
+        <div className="mt-auto">
+          <div className="mb-3 flex items-baseline gap-2">
+            <span className="text-xl font-extrabold text-slate-900">₹{product.price.toFixed(0)}</span>
+            <span className="text-xs font-medium text-slate-500">/ kg</span>
+            {product.originalPrice && product.originalPrice > product.price && (
+              <span className="text-sm text-slate-400 line-through">₹{product.originalPrice.toFixed(0)}</span>
+            )}
           </div>
-          <button onClick={onAddToCart}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${inCart ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : hovered ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-emerald-50 text-emerald-600'}`}>
-            {inCart
-              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            }
-          </button>
+
+          {outOfStock ? (
+            <button disabled className="w-full cursor-not-allowed rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-slate-400">
+              Notify Me
+            </button>
+          ) : inCart ? (
+            <div className="flex items-center justify-between rounded-xl bg-emerald-600 p-1 text-white shadow-sm shadow-emerald-200">
+              <button onClick={dec} aria-label="Decrease quantity" className="flex h-8 w-9 items-center justify-center rounded-lg transition-colors hover:bg-emerald-700">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </button>
+              <span className="text-sm font-bold">{qty} in cart</span>
+              <button onClick={inc} aria-label="Increase quantity" className="flex h-8 w-9 items-center justify-center rounded-lg transition-colors hover:bg-emerald-700">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAdd}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white shadow-sm shadow-emerald-200 transition-all hover:bg-emerald-700 hover:shadow-md active:scale-[0.98]"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
+              Add to Cart
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1192,7 +1266,7 @@ const ProductCard: React.FC<{
 
 export default function ProdDisplay() {
   const router = useRouter();
-  const { addToCart, isInCart, totalItems, totalAmount } = useCart();
+  const { totalItems, totalAmount } = useCart();
   const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [selectedCollection, setSelectedCollection] = useState<Category>('All Products');
@@ -1260,8 +1334,10 @@ export default function ProdDisplay() {
 
             {/* Right Actions */}
             <div className="flex items-center gap-6">
-              <button className="text-slate-600 hover:text-emerald-600 transition-colors hidden sm:block">
+              <button onClick={() => router.push('/me/profile')}
+                className="hidden sm:flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors">
                 <UserIcon />
+                <span className="text-sm font-semibold">Account</span>
               </button>
               <button onClick={() => router.push('/checkout')}
                 className="relative text-slate-600 hover:text-emerald-600 transition-colors flex items-center gap-2">
@@ -1280,11 +1356,16 @@ export default function ProdDisplay() {
         </div>
       </header>
 
+      {/* Full-width promotional posters — 10px gutter on each side */}
+      <div className="px-2.5 pt-2.5">
+        <PosterCarousel />
+      </div>
+
       {/* ── Page Content ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+        <div id="marketplace" className="scroll-mt-28 flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-2">
               {selectedCollection === 'All Products' ? 'Fresh Marketplace' : selectedCollection}
@@ -1382,11 +1463,6 @@ export default function ProdDisplay() {
                     key={product.id}
                     product={product}
                     onClick={() => router.push(`/products/${product.id}`)}
-                    onAddToCart={(e) => {
-                      e.stopPropagation();
-                      addToCart({ id: product.id, name: product.name, price: product.price, imageUrl: product.imageUrl, category: product.category });
-                    }}
-                    inCart={isInCart(product.id)}
                   />
                 ))}
               </div>
