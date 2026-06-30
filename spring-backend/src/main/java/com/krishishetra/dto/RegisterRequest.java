@@ -21,4 +21,21 @@ public class RegisterRequest {
     private String role = "Consumer";
 
     private String phone;
+
+    // ── Optional farmer linkage / profile (set when onboarding a farmer) ─────────
+    private String fpoId;
+
+    private String fpoName;
+
+    private String mappedSHGId;
+
+    private String district;
+
+    private String taluka;
+
+    private String village;
+
+    private String landDetails;
+
+    private String address;
 }

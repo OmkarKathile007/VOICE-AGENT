@@ -10,6 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,6 +27,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity   // enables @PreAuthorize on the SHG endpoints
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -44,7 +46,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
+                // A farmer's own listings are private — must be matched BEFORE the
+                // public products GET rule below (first match wins).
+                .requestMatchers(HttpMethod.GET, "/api/products/my-listings").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                // SHG verification API — SHG role only (also enforced via @PreAuthorize)
+                .requestMatchers("/api/shg/**").hasRole("SHG")
                 .requestMatchers("/actuator/**").permitAll()
                 // Everything else needs authentication
                 .anyRequest().authenticated()

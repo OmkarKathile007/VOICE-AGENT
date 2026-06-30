@@ -42,6 +42,14 @@ public class AuthController {
                 .name(req.getName() != null ? req.getName() : req.getEmail().split("@")[0])
                 .role(req.getRole() != null ? req.getRole() : "Consumer")
                 .phone(req.getPhone())
+                .fpoId(req.getFpoId())
+                .fpoName(req.getFpoName())
+                .mappedSHGId(req.getMappedSHGId())
+                .district(req.getDistrict())
+                .taluka(req.getTaluka())
+                .village(req.getVillage())
+                .landDetails(req.getLandDetails())
+                .address(req.getAddress())
                 .createdAt(Instant.now())
                 .build();
 
