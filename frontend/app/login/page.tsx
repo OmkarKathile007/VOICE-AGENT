@@ -131,7 +131,7 @@ export default function LoginPage() {
   const redirectAfterAuth = (role: string) => {
     if (role === 'Consumer') router.push('/products');
     else if (role === 'Processor') window.location.href = 'http://localhost:8081';
-    else if (role === 'SHG') window.location.href = 'https://shree-anna-certify.lovable.app';
+    else if (role === 'SHG') router.push('/shg');
     else if (role === 'Startup') window.location.href = 'https://krishi-sphere-nexus.lovable.app';
     else router.push('/agent/voice');
   };
