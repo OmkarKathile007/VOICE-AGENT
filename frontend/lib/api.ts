@@ -41,6 +41,62 @@ export interface Product {
   reviews: number;
   description?: string;
   inStock: boolean;
+
+  // ── SHG verification workflow ──────────────────────────────────────────────
+  verificationStatus?: VerificationStatus;
+  verifiedBy?: string;
+  verifiedByName?: string;
+  verifiedAt?: string;
+  verificationRemark?: string;
+  rejectionReason?: string;
+  verificationHistory?: VerificationEvent[];
+
+  // ── Farmer listing context ─────────────────────────────────────────────────
+  farmerId?: string;
+  farmerName?: string;
+  farmerEmail?: string;
+  village?: string;
+  fpoId?: string;
+  fpoName?: string;
+  shgId?: string;
+  crop?: string;
+  quantity?: string;
+  expectedPrice?: string;
+  voiceTranscript?: string;
+  aiExtractedFields?: Record<string, unknown>;
+  qualityScore?: number;
+  certifications?: string[];
+  images?: string[];
+  source?: 'manual' | 'voice';
+  createdAt?: string;
+}
+
+export type VerificationStatus = 'PENDING_SHG_VERIFICATION' | 'APPROVED' | 'REJECTED';
+
+export interface VerificationEvent {
+  action: 'CREATED' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED';
+  actorEmail?: string;
+  actorName?: string;
+  actorRole?: string;
+  remark?: string;
+  reason?: string;
+  at?: string;
+}
+
+export interface FarmerListingInput {
+  crop: string;
+  quantity: string;
+  price: string;
+  location?: string;
+  name?: string;
+  category?: string;
+  imageUrl?: string;
+  images?: string[];
+  source?: 'manual' | 'voice';
+  voiceTranscript?: string;
+  aiExtractedFields?: Record<string, unknown>;
+  qualityScore?: number;
+  certifications?: string[];
 }
 
 export interface AuthResponse {
@@ -131,6 +187,27 @@ export const productsApi = {
   getById: async (id: string): Promise<Product | null> => {
     const res = await fetch(`${BACKEND}/api/products/${id}`);
     if (!res.ok) return null;
+    return res.json();
+  },
+
+  /** Create a farmer listing → saved as PENDING_SHG_VERIFICATION (not yet on market). */
+  createFarmerListing: async (input: FarmerListingInput): Promise<Product> => {
+    const res = await fetch(`${BACKEND}/api/products/farmer-listing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? err.message ?? 'Failed to create listing');
+    }
+    return res.json();
+  },
+
+  /** The signed-in farmer's own listings with verification status & history. */
+  getMyListings: async (): Promise<Product[]> => {
+    const res = await fetch(`${BACKEND}/api/products/my-listings`, { headers: authHeaders() });
+    if (!res.ok) return [];
     return res.json();
   },
 };
@@ -226,4 +303,112 @@ export const api = {
       return false;
     }
   },
+};
+
+// ─── SHG Verification API (Spring Boot) ───────────────────────────────────────
+
+export interface ShgDashboard {
+  shgName: string;
+  pendingVerification: number;
+  approvedToday: number;
+  rejectedToday: number;
+  totalFarmers: number;
+  mappedFPOs: number;
+  verificationAccuracy: number;
+  totalApproved: number;
+  totalRejected: number;
+  totalListings: number;
+}
+
+export interface Shg {
+  id: string;
+  name: string;
+  district?: string;
+  taluka?: string;
+  village?: string;
+  contactPerson?: string;
+  phone?: string;
+  email: string;
+  mappedFPOIds?: string[];
+  createdAt?: string;
+}
+
+export interface FarmerUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  village?: string;
+  district?: string;
+  taluka?: string;
+  fpoId?: string;
+  fpoName?: string;
+  mappedSHGId?: string;
+  landDetails?: string;
+  address?: string;
+}
+
+export interface FarmerDetail {
+  farmer: FarmerUser;
+  currentListings: Product[];
+  approvedListings: Product[];
+  rejectedListings: Product[];
+  totalListings: number;
+}
+
+export interface ShgAnalytics {
+  totalPending: number;
+  totalApproved: number;
+  totalRejected: number;
+  verificationTrends: { date: string; approved: number; rejected: number; pending: number }[];
+  mostActiveFarmers: { label: string; count: number }[];
+  mostActiveFPOs: { label: string; count: number }[];
+  topVillages: { label: string; count: number }[];
+}
+
+export const REJECTION_REASONS = [
+  'Poor Product Quality',
+  'Incorrect Quantity',
+  'Duplicate Listing',
+  'Image Not Clear',
+  'Invalid Information',
+  'Other',
+] as const;
+
+async function shgGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${BACKEND}/api/shg${path}`, { headers: authHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message ?? err.error ?? `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+async function shgPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BACKEND}/api/shg${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message ?? err.error ?? `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export const shgApi = {
+  profile: () => shgGet<Shg>('/profile'),
+  dashboard: () => shgGet<ShgDashboard>('/dashboard'),
+  farmers: () => shgGet<FarmerUser[]>('/farmers'),
+  pendingProducts: () => shgGet<Product[]>('/pending-products'),
+  approvedProducts: () => shgGet<Product[]>('/approved-products'),
+  rejectedProducts: () => shgGet<Product[]>('/rejected-products'),
+  farmer: (id: string) => shgGet<FarmerDetail>(`/farmer/${id}`),
+  analytics: () => shgGet<ShgAnalytics>('/analytics'),
+  approve: (productId: string, remark?: string) =>
+    shgPost<Product>(`/product/${productId}/approve`, { remark }),
+  reject: (productId: string, reason: string, remark?: string) =>
+    shgPost<Product>(`/product/${productId}/reject`, { reason, remark }),
 };
