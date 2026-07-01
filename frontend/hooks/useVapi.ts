@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Vapi from '@vapi-ai/web';
-import { api } from '@/lib/api';
+import { productsApi, getToken } from '@/lib/api';
+import type { TranscriptItem } from '@/components/TranscriptPanel';
 
 const getVapiInstance = () => {
   if (typeof window !== 'undefined') {
@@ -23,11 +24,14 @@ export function useVapi() {
     'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking'
   >('disconnected');
   const [isSessionActive, setIsSessionActive] = useState(false);
-  const [transcript, setTranscript] = useState<{ role: string; text: string }[]>([]);
+  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
 
   const vapiRef = useRef<any>(null);
   // Track processed tool-call IDs to avoid duplicate saves
   const processedCallIds = useRef<Set<string>>(new Set());
+  // Mirror of the transcript so the tool-call handler can capture the spoken context
+  const transcriptRef = useRef<TranscriptItem[]>([]);
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
   useEffect(() => {
     if (!vapiRef.current) {
@@ -60,7 +64,7 @@ export function useVapi() {
         if (!text) return;
 
         setTranscript(prev => {
-          const role = message.role ?? 'user';
+          const role = (message.role ?? 'user') as TranscriptItem['role'];
           const isDuplicate = prev
             .slice(-3)
             .some(item => item.role === role && normalizeTranscriptText(item.text) === text);
@@ -89,19 +93,45 @@ export function useVapi() {
 
             setTranscript(prev => [
               ...prev,
-              { role: 'assistant', text: `Saving listing for ${crop}…` },
+              { role: 'assistant', text: `Submitting ${crop} for SHG verification…` },
             ]);
 
+            // Require a signed-in farmer — the listing is routed to their SHG.
+            if (!getToken()) {
+              setTranscript(prev => [
+                ...prev,
+                { role: 'assistant', text: 'Please sign in first so I can submit your listing for verification.' },
+              ]);
+              vapi.send({
+                type: 'tool-output',
+                toolCallList: [{ id: toolCall.id, result: 'Farmer not signed in. Ask them to log in, then retry.' }],
+              } as any);
+              continue;
+            }
+
+            // Capture the spoken context as the listing's voice transcript.
+            const voiceTranscript = transcriptRef.current
+              .filter(t => t.role === 'user')
+              .map(t => t.text)
+              .join(' ');
+
             try {
-              const result = await api.createListing({
+              const result = await productsApi.createFarmerListing({
                 crop,
                 quantity: String(quantity),
                 price: String(price),
                 location,
                 source: 'voice',
+                voiceTranscript,
+                aiExtractedFields: { crop, quantity: String(quantity), price: String(price), village: location },
               });
 
-              console.log('✅ Listing saved:', result);
+              console.log('✅ Listing submitted for verification:', result);
+
+              setTranscript(prev => [
+                ...prev,
+                { role: 'assistant', text: `Your ${crop} listing has been sent to your SHG for verification.` },
+              ]);
 
               // Send the result back to Vapi so the assistant can confirm to the user
               vapi.send({
@@ -109,17 +139,15 @@ export function useVapi() {
                 toolCallList: [
                   {
                     id: toolCall.id,
-                    result: result
-                      ? `Listing for ${crop} saved successfully.`
-                      : 'Failed to save listing. Please try again.',
+                    result: `Listing for ${crop} submitted and is pending SHG verification.`,
                   },
                 ],
               } as any);
             } catch (err) {
-              console.error('❌ Failed to save listing:', err);
+              console.error('❌ Failed to submit listing:', err);
               vapi.send({
                 type: 'tool-output',
-                toolCallList: [{ id: toolCall.id, result: 'Error saving listing.' }],
+                toolCallList: [{ id: toolCall.id, result: 'Error submitting listing for verification.' }],
               } as any);
             }
           }

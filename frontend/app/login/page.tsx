@@ -100,7 +100,15 @@ const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, register } = useAuth();
+  const { login, register, isAuthenticated, loading: authLoading } = useAuth();
+
+  // Drop any stale/expired token so logging in always starts from a clean slate
+  // (prevents a leftover token from causing "session expired" after sign-in).
+  React.useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      localStorage.removeItem('krishi_token');
+    }
+  }, [authLoading, isAuthenticated]);
 
   const getInitialLang = (): Lang => {
     if (typeof window === 'undefined') return 'EN';
@@ -118,6 +126,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,10 +139,12 @@ export default function LoginPage() {
 
   const redirectAfterAuth = (role: string) => {
     if (role === 'Consumer') router.push('/products');
-    else if (role === 'Processor') window.location.href = 'http://localhost:8081';
+    else if (role === 'Processor') window.location.href = process.env.NEXT_PUBLIC_PROCESSOR_URL ?? 'http://localhost:8081';
     else if (role === 'SHG') router.push('/shg');
-    else if (role === 'Startup') window.location.href = 'https://krishi-sphere-nexus.lovable.app';
-    else router.push('/agent/voice');
+    else if (role === 'Startup') router.push('/startup');
+    else if (role === 'FPO') router.push('/agent/voice');
+    // else router.push('/products');
+    // else router.push('/agent/voice');
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -143,10 +154,15 @@ export default function LoginPage() {
     if (!isValidEmail(email)) return setError(ui.validation.invalidEmail);
     if (!password.trim()) return setError(ui.validation.enterPassword);
 
+    // FPOs must provide a mobile number so the SHG can place an AI agent call.
+    if (isRegister && selectedRole === 'FPO' && phone.trim().replace(/\D/g, '').length < 10) {
+      return setError('Please enter a valid 10-digit mobile number.');
+    }
+
     setLoading(true);
     try {
       if (isRegister) {
-        const data = await register(email, password, name || email.split('@')[0], selectedRole);
+        const data = await register(email, password, name || email.split('@')[0], selectedRole, phone.trim() || undefined);
         redirectAfterAuth(data.role);
       } else {
         const data = await login(email, password);
@@ -174,7 +190,7 @@ export default function LoginPage() {
                 const active = key === selectedRole;
                 const meta = dict.roles[key];
                 return (
-                  <button key={key} type="button" onClick={() => setSelectedRole(key)}
+                  <button key={key} type="button" onClick={() => { setSelectedRole(key); if (key === 'SHG') setIsRegister(false); setError(null); }}
                     className={`w-full text-left flex items-start gap-4 p-4 rounded-xl transition-all border ${active ? "bg-emerald-100 border-emerald-400 shadow-md ring-2 ring-emerald-500/20" : "bg-white border-transparent hover:border-emerald-200 hover:shadow-sm"}`}>
                     <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-colors ${active ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"}`}>
                       {key === "FPO" && <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none"><path d="M12 2L19 7v7c0 4-3 7-7 7s-7-3-7-7V7l7-5z" stroke="currentColor" strokeWidth="2"/></svg>}
@@ -233,6 +249,20 @@ export default function LoginPage() {
               </div>
             )}
 
+            {isRegister && (
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Mobile Number {selectedRole === 'FPO' && <span className="text-emerald-600">*</span>}
+                </label>
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all" />
+                {selectedRole === 'FPO' && (
+                  <p className="mt-1.5 text-xs text-slate-400">Your SHG will use this number to place an AI agent call.</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">{ui.emailOnly}</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -262,19 +292,25 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center justify-between text-sm text-slate-500 font-medium pt-4 border-t border-slate-100">
-              <div>
-                {isRegister ? 'Already have an account? ' : 'New to Krishi-Shetra? '}
-                <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); }}
-                  className="text-emerald-600 font-bold hover:underline">
-                  {isRegister ? ui.login : ui.register}
-                </button>
-              </div>
+              {selectedRole === 'SHG' ? (
+                <div className="text-slate-400">Verification authority — sign in with your provided SHG credentials.</div>
+              ) : (
+                <div>
+                  {isRegister ? 'Already have an account? ' : 'New to Krishi-Shetra? '}
+                  <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); }}
+                    className="text-emerald-600 font-bold hover:underline">
+                    {isRegister ? ui.login : ui.register}
+                  </button>
+                </div>
+              )}
               <button type="button" className="hover:text-slate-800">{ui.terms}</button>
             </div>
           </form>
 
           <div className="mt-8 p-4 bg-slate-50 rounded-xl text-sm text-slate-600 font-medium border border-slate-200">
-            {dict.roles[selectedRole].note}
+            {selectedRole === 'SHG'
+              ? 'SHG is a single verification account managed by the platform — registration is disabled. It can review every farmer’s listings.'
+              : dict.roles[selectedRole].note}
           </div>
         </main>
       </div>

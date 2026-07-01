@@ -14,12 +14,12 @@ export async function POST(req: Request) {
     const response = await fetch('https://api.vapi.ai/call/phone', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_VAPI_PRIVATE_KEY}`, // Hidden from users
+        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_VAPI_PRIVATE_KEY}`, // Server-only secret — never exposed to the browser
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         assistantId: process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID,
-        phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID, // The +1 (512)... number
+        phoneNumberId: process.env.NEXT_PUBLIC_VAPI_PHONE_NUMBER_ID, // The +1 (512)... number
         customer: {
           number: customerNumber, // The number we want to dial (e.g., +91...)
         },

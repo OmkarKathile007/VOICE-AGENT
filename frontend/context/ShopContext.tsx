@@ -171,8 +171,10 @@ import all_product from "@/components/Assets/all_product";
 export interface Product {
   id: number;
   name: string;
+  category: string;
+  image: any;
   new_price: number;
-  old_price?: number;
+  old_price: number;
   [key: string]: any;
 }
 

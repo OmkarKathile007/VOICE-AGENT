@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { ordersApi } from '@/lib/api';
+import { ordersApi, paymentsApi } from '@/lib/api';
+import { loadRazorpayScript, openRazorpayCheckout, RazorpaySuccessResponse } from '@/lib/razorpay';
 import { ShoppingBag, MapPin, Phone, CreditCard, Truck, CheckCircle, ArrowLeft, Trash2 } from 'lucide-react';
 
 export default function CheckoutPage() {
@@ -26,6 +27,25 @@ export default function CheckoutPage() {
   const [success, setSuccess] = useState(false);
 
   const fullAddress = `${form.address}, ${form.city} - ${form.pincode}`.trim().replace(/^, /, '');
+  const deliveryFee = totalAmount >= 999 ? 0 : 49;
+  const grandTotal = totalAmount + deliveryFee;
+
+  // Place one order per cart item. `payment` is attached to online orders only.
+  const placeOrders = (payment?: { razorpayOrderId: string; razorpayPaymentId: string }) =>
+    Promise.all(items.map(item =>
+      ordersApi.place({
+        productId: item.product.id,
+        productName: item.product.name,
+        quantity: item.qty,
+        pricePerUnit: item.product.price,
+        deliveryAddress: fullAddress,
+        phone: form.phone,
+        paymentMethod: form.paymentMethod,
+        razorpayOrderId: payment?.razorpayOrderId,
+        razorpayPaymentId: payment?.razorpayPaymentId,
+        notes: form.notes,
+      })
+    ));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,26 +61,81 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (form.paymentMethod === 'upi') {
+      await payWithRazorpay();
+      return;
+    }
+
+    // Cash on delivery — place the order right away.
     setLoading(true);
     try {
-      // Place one order per cart item
-      await Promise.all(items.map(item =>
-        ordersApi.place({
-          productId: item.product.id,
-          productName: item.product.name,
-          quantity: item.qty,
-          pricePerUnit: item.product.price,
-          deliveryAddress: fullAddress,
-          phone: form.phone,
-          paymentMethod: form.paymentMethod,
-          notes: form.notes,
-        })
-      ));
+      await placeOrders();
       clearCart();
       setSuccess(true);
     } catch (err: any) {
       setError(err.message ?? 'Failed to place order. Please try again.');
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const payWithRazorpay = async () => {
+    setLoading(true);
+    try {
+      const ready = await loadRazorpayScript();
+      if (!ready) {
+        setError('Could not load the payment gateway. Check your connection and try again.');
+        setLoading(false);
+        return;
+      }
+
+      // 1. Create a Razorpay order on the backend (amount incl. delivery).
+      const rzpOrder = await paymentsApi.createRazorpayOrder(grandTotal);
+
+      // 2. Open Checkout. The rest of the flow runs inside these callbacks.
+      openRazorpayCheckout({
+        key: rzpOrder.keyId,
+        amount: rzpOrder.amount,
+        currency: rzpOrder.currency,
+        order_id: rzpOrder.orderId,
+        name: 'Krishi Shetra',
+        description: `Order · ${totalItems} item${totalItems !== 1 ? 's' : ''}`,
+        prefill: { name: form.name, email: user?.email, contact: form.phone },
+        theme: { color: '#059669' },
+        handler: async (resp: RazorpaySuccessResponse) => {
+          try {
+            // 3. Verify the signature server-side — this is what confirms payment.
+            const verified = await paymentsApi.verifyRazorpayPayment({
+              razorpayOrderId: resp.razorpay_order_id,
+              razorpayPaymentId: resp.razorpay_payment_id,
+              razorpaySignature: resp.razorpay_signature,
+            });
+            if (!verified) {
+              setError('Payment could not be verified. If you were charged, it will be refunded.');
+              setLoading(false);
+              return;
+            }
+            // 4. Payment confirmed → place the orders.
+            await placeOrders({
+              razorpayOrderId: resp.razorpay_order_id,
+              razorpayPaymentId: resp.razorpay_payment_id,
+            });
+            clearCart();
+            setSuccess(true);
+          } catch (err: any) {
+            setError(err.message ?? 'Payment succeeded but the order could not be saved. Please contact support.');
+          } finally {
+            setLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setLoading(false);
+          },
+        },
+      });
+    } catch (err: any) {
+      setError(err.message ?? 'Could not start the payment. Please try again.');
       setLoading(false);
     }
   };
@@ -79,7 +154,7 @@ export default function CheckoutPage() {
           <p className="text-slate-400 text-sm mb-8">
             {form.paymentMethod === 'cod'
               ? 'Pay cash on delivery. We\'ll contact you at ' + form.phone + '.'
-              : 'UPI payment confirmation will be sent to your email.'}
+              : 'Payment received. A confirmation will be sent to your email.'}
           </p>
           <div className="flex gap-3">
             <button onClick={() => router.push('/products')}
@@ -186,7 +261,7 @@ export default function CheckoutPage() {
                 <CreditCard className="w-5 h-5 text-emerald-600" /> Payment Method
               </h2>
               <div className="grid grid-cols-2 gap-3">
-                {([['cod', 'Cash on Delivery', 'Pay when your order arrives.'], ['upi', 'UPI / Online', 'Pay via UPI, Net Banking, or Card.']] as const).map(([val, label, desc]) => (
+                {([['cod', 'Cash on Delivery', 'Pay when your order arrives.'], ['upi', 'Pay Online', 'UPI, Cards & NetBanking via Razorpay.']] as const).map(([val, label, desc]) => (
                   <button key={val} type="button" onClick={() => setForm({ ...form, paymentMethod: val })}
                     className={`p-4 rounded-xl border-2 text-left transition-all ${form.paymentMethod === val ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                     <div className={`text-sm font-bold mb-1 ${form.paymentMethod === val ? 'text-emerald-700' : 'text-slate-800'}`}>{label}</div>
@@ -203,9 +278,11 @@ export default function CheckoutPage() {
             <button type="submit" disabled={loading}
               className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-extrabold shadow-lg shadow-emerald-200 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
               {loading ? (
-                <><svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Placing Order...</>
+                <><svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> {form.paymentMethod === 'upi' ? 'Processing Payment...' : 'Placing Order...'}</>
+              ) : form.paymentMethod === 'upi' ? (
+                <><CreditCard className="w-5 h-5" /> Pay ₹{grandTotal.toFixed(0)}</>
               ) : (
-                <><ShoppingBag className="w-5 h-5" /> Place Order · ₹{totalAmount.toFixed(0)}</>
+                <><ShoppingBag className="w-5 h-5" /> Place Order · ₹{grandTotal.toFixed(0)}</>
               )}
             </button>
           </form>

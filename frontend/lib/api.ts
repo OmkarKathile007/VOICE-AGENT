@@ -1,6 +1,6 @@
 // ─── Base URLs ────────────────────────────────────────────────────────────────
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
-const AI_URL   = process.env.NEXT_PUBLIC_AI_URL      ?? 'http://localhost:8000';
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+const AI_URL   = process.env.NEXT_PUBLIC_AI_URL      || 'http://localhost:8000';
 
 // ─── Token helper ─────────────────────────────────────────────────────────────
 export const getToken = (): string | null => {
@@ -129,19 +129,29 @@ export interface Order {
   deliveryAddress: string;
   phone: string;
   paymentMethod?: string;
+  paymentStatus?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
   notes?: string;
   status?: string;
   createdAt?: string;
 }
 
+export interface RazorpayOrder {
+  orderId: string;
+  amount: number;   // in paise
+  currency: string;
+  keyId: string;    // public key id — safe to expose to the browser
+}
+
 // ─── Auth API (Spring Boot) ───────────────────────────────────────────────────
 
 export const authApi = {
-  register: async (email: string, password: string, name: string, role: string): Promise<AuthResponse> => {
+  register: async (email: string, password: string, name: string, role: string, phone?: string): Promise<AuthResponse> => {
     const res = await fetch(`${BACKEND}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name, role }),
+      body: JSON.stringify({ email, password, name, role, phone }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -234,6 +244,41 @@ export const ordersApi = {
     });
     if (!res.ok) return [];
     return res.json();
+  },
+};
+
+// ─── Payments API (Razorpay via Spring Boot) ──────────────────────────────────
+
+export interface VerifyPaymentInput {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}
+
+export const paymentsApi = {
+  /** Create a Razorpay order for the given rupee amount (delivery included). */
+  createRazorpayOrder: async (amount: number): Promise<RazorpayOrder> => {
+    const res = await fetch(`${BACKEND}/api/payments/razorpay/order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ amount }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? 'Could not start payment');
+    }
+    return res.json();
+  },
+
+  /** Verify the signature Razorpay returned after a successful payment. */
+  verifyRazorpayPayment: async (input: VerifyPaymentInput): Promise<boolean> => {
+    const res = await fetch(`${BACKEND}/api/payments/razorpay/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.verified === true;
   },
 };
 
@@ -376,12 +421,30 @@ export const REJECTION_REASONS = [
   'Other',
 ] as const;
 
+// Session expired / not signed in → bounce back to login (once).
+function handleAuthFailure() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('krishi_token');
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
+async function shgError(res: Response): Promise<never> {
+  if (res.status === 401) {
+    handleAuthFailure();
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+  const err = await res.json().catch(() => ({}));
+  if (res.status === 403) {
+    throw new Error(err.message ?? 'You don’t have access to this SHG resource.');
+  }
+  throw new Error(err.message ?? err.error ?? `Request failed (${res.status})`);
+}
+
 async function shgGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND}/api/shg${path}`, { headers: authHeaders() });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message ?? err.error ?? `Request failed (${res.status})`);
-  }
+  if (!res.ok) return shgError(res);
   return res.json();
 }
 
@@ -391,10 +454,7 @@ async function shgPost<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body ?? {}),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message ?? err.error ?? `Request failed (${res.status})`);
-  }
+  if (!res.ok) return shgError(res);
   return res.json();
 }
 

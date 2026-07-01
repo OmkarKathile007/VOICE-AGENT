@@ -27,8 +27,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
-  const animationFrameRef = useRef<number>();
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const vert = /* glsl */ `
@@ -204,7 +203,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
     if (!container) return;
 
     let rendererInstance: Renderer | null = null;
-    let glContext: WebGLRenderingContext | WebGL2RenderingContext | null = null;
+    let glContext: Renderer["gl"] | null = null;
     let rafId: number;
     let program: Program | null = null;
 

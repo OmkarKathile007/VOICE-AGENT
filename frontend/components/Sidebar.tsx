@@ -2,19 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Mic, LayoutDashboard, ShoppingBag, History, Settings, Leaf } from 'lucide-react';
+import { Mic, ShoppingBag, History, Leaf } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Sidebar = () => {
   const pathname = usePathname();
 
   const navItems = [
-    // { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Mic, label: 'Assistant', path: '/agent/voice' }, // Matches your folder structure
     { icon: ShoppingBag, label: 'Products', path: '/products' },
-    { icon: History, label: 'History', path: '/agent/history' }, // You'll need to create this folder later
+    { icon: History, label: 'History', path: '/agent/history' },
     { icon: ShoppingBag, label: 'My Listings', path: '/agent/listings' },
-    { icon: Settings, label: 'Insights', path: '/agent/admin' },
+    // Outbound AI agent calls moved to the SHG dashboard (/shg/calls).
   ];
 
   return (

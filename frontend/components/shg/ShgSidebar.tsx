@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard, ClipboardCheck, PackageCheck, PackageX, Users,
-  Building2, FileBarChart, LineChart, UserCircle, Leaf, LogOut,
+  Building2, FileBarChart, LineChart, UserCircle, Leaf, LogOut, PhoneCall,
 } from 'lucide-react';
 
 const NAV = [
@@ -15,6 +15,7 @@ const NAV = [
   { icon: PackageCheck, label: 'Approved Products', path: '/shg/approved' },
   { icon: PackageX, label: 'Rejected Products', path: '/shg/rejected' },
   { icon: Users, label: 'Farmers', path: '/shg/farmers' },
+  { icon: PhoneCall, label: 'Voice Outreach', path: '/shg/calls' },
   { icon: Building2, label: 'FPOs', path: '/shg/fpos' },
   { icon: FileBarChart, label: 'Reports', path: '/shg/reports' },
   { icon: LineChart, label: 'Analytics', path: '/shg/analytics' },
