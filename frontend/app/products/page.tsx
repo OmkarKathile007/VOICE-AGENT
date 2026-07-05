@@ -1079,6 +1079,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { productsApi, type Product as ApiProduct } from '@/lib/api';
+import { FALLBACK_PRODUCTS } from '@/lib/fallback-products';
 import PosterCarousel from '@/components/PosterCarousel';
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -1169,6 +1170,12 @@ const ProductCard: React.FC<{
           {labelBadge && (
             <span className="rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
               {labelBadge}
+            </span>
+          )}
+          {product.listedInStore && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 15 8.5 22 9.3l-5 4.6 1.4 6.9L12 17.8 5.6 20.8 7 13.9 2 9.3l7-.8z"/></svg>
+              Curated
             </span>
           )}
         </div>
@@ -1275,9 +1282,14 @@ export default function ProdDisplay() {
 
   useEffect(() => {
     productsApi.getAll().then(data => {
-      setAllProducts(data);
+      // Show verified demo produce if the backend has no products yet, so the
+      // marketplace is never empty and always reflects SHG-verified supply.
+      setAllProducts(data.length ? data : FALLBACK_PRODUCTS);
       setLoadingProducts(false);
-    }).catch(() => setLoadingProducts(false));
+    }).catch(() => {
+      setAllProducts(FALLBACK_PRODUCTS);
+      setLoadingProducts(false);
+    });
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -1287,6 +1299,8 @@ export default function ProdDisplay() {
     switch (sortOrder) {
       case 'Price: Low to high': products.sort((a, b) => a.price - b.price); break;
       case 'Price: High to low': products.sort((a, b) => b.price - a.price); break;
+      // Otherwise surface startup-curated produce first.
+      default: products.sort((a, b) => Number(!!b.listedInStore) - Number(!!a.listedInStore));
     }
     return products;
   }, [allProducts, selectedCollection, searchTerm, sortOrder]);

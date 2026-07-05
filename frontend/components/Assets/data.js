@@ -26,7 +26,7 @@ let data_product = [
   {id:4,
     name:"Striped Flutter Sleeve Overlap Collar Peplum Hem Blouse",
     image:p4_img,
-    new_price:100.00,
+    new_price:1.00,
     old_price:150.00,
   },
 ];

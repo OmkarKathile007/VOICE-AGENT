@@ -69,6 +69,13 @@ export interface Product {
   images?: string[];
   source?: 'manual' | 'voice';
   createdAt?: string;
+
+  // ── Startup → consumer store listing ──────────────────────────────────────
+  /** True once a startup has listed this SHG-verified produce in the consumer store. */
+  listedInStore?: boolean;
+  listedByStartupId?: string;
+  listedByStartupName?: string;
+  listedAt?: string;
 }
 
 export type VerificationStatus = 'PENDING_SHG_VERIFICATION' | 'APPROVED' | 'REJECTED';
@@ -218,6 +225,39 @@ export const productsApi = {
   getMyListings: async (): Promise<Product[]> => {
     const res = await fetch(`${BACKEND}/api/products/my-listings`, { headers: authHeaders() });
     if (!res.ok) return [];
+    return res.json();
+  },
+
+  /** Every SHG-verified (APPROVED) product — the startup sourcing feed. */
+  getVerified: async (): Promise<Product[]> => {
+    const res = await fetch(`${BACKEND}/api/products/verified`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  /** Startup lists an SHG-verified product in the consumer store. */
+  publishToStore: async (id: string): Promise<Product> => {
+    const res = await fetch(`${BACKEND}/api/products/${id}/publish`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? 'Could not list this product in the store');
+    }
+    return res.json();
+  },
+
+  /** Startup removes a product it previously listed from the consumer store. */
+  unpublishFromStore: async (id: string): Promise<Product> => {
+    const res = await fetch(`${BACKEND}/api/products/${id}/unpublish`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? 'Could not remove this product from the store');
+    }
     return res.json();
   },
 };

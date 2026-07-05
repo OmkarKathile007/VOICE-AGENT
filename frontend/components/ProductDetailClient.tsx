@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import Image from "next/image";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import type { Product as CartProduct } from "@/context/CartContext";
 
-export type RelatedItem = { id: string; title: string; image: string; price?: number };
+export type RelatedItem = { id: string; title: string; image?: string; price?: number };
 export type Product = {
   id: string;
   title?: string;
@@ -24,20 +23,22 @@ type Props = { product: Product };
 
 const FALLBACK_IMAGES = ["/foxtail1.jpg", "/foxtail2.jpg", "/foxtail3.jpg", "/foxtail4.jpg"];
 
-const MANUAL_RELATED: RelatedItem[] = [
-  { id: "1", title: "Pearl Millet (Bajra)", image: "/pearlmillet.jpg", price: 120 },
-  { id: "2", title: "Kodo Millet", image: "/kodo.jpg", price: 140 },
-  { id: "3", title: "Sorghum (Jowar) Flour", image: "/jowar.jpg", price: 110 },
-  { id: "4", title: "Organic Ragi", image: "/ragi.jpg", price: 130 },
-];
+const placeholder = (label: string) =>
+  `https://placehold.co/600x600/f1f5f9/0f172a?text=${encodeURIComponent(label.split(" ").slice(0, 2).join(" ") || "Product")}`;
 
 export default function ProductDetailClient({ product }: Props) {
   const router = useRouter();
   const { addToCart, isInCart } = useCart();
 
   const displayName = product.title ?? product.name ?? "Product";
-  const images = product.images?.length ? product.images : (product.imageUrl ? [product.imageUrl] : FALLBACK_IMAGES);
-  const related = product.related ?? MANUAL_RELATED;
+  const gallery = (product.images?.length
+    ? product.images
+    : product.imageUrl
+      ? [product.imageUrl]
+      : FALLBACK_IMAGES
+  ).filter(Boolean);
+  const images = gallery.length ? gallery : FALLBACK_IMAGES;
+  const related = product.related ?? [];
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [qty, setQty] = useState(1);
@@ -62,106 +63,146 @@ export default function ProductDetailClient({ product }: Props) {
     router.push("/checkout");
   };
 
-  const marqueeDuration = useMemo(() => `${Math.max(20, related.length * 6)}s`, [related.length]);
-
   return (
-    <div className="w-screen min-h-screen bg-neutral-950 text-slate-100 overflow-y-auto overflow-x-hidden">
-      <div className="absolute top-4 left-6 z-10">
-        <button onClick={() => router.back()}
-          className="text-emerald-400 hover:text-emerald-300 text-sm md:text-base inline-flex items-center gap-1">
-          ← Back
-        </button>
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      {/* Top bar */}
+      <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 transition-colors hover:text-emerald-800"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
+            Back to marketplace
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row items-stretch w-full min-h-screen">
-        {/* LEFT — gallery */}
-        <div className="relative w-full lg:w-[60%] h-[50vh] lg:h-auto lg:min-h-screen bg-linear-to-b from-gray-900 to-gray-800 flex items-center justify-center p-4 md:p-8">
-          <div className="relative w-full h-full max-w-5xl" style={{ minHeight: 300 }}>
-            <Image src={images[activeIndex]} alt={`${displayName} image`} fill priority
-              className="object-contain rounded-2xl"
-              onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/800x600/0f172a/ffffff?text=${encodeURIComponent(displayName)}`; }} />
-          </div>
-          <div className="absolute bottom-6 flex gap-3 justify-center w-full">
-            {images.slice(0, 4).map((src, i) => (
-              <button key={i} onClick={() => setActiveIndex(i)}
-                className={`relative w-16 h-16 rounded-md overflow-hidden border-2 transition-transform ${i === activeIndex ? "border-emerald-400 scale-105 shadow-lg" : "border-gray-700 hover:border-slate-500"}`}>
-                <Image src={src} alt={`thumb ${i + 1}`} fill className="object-cover" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* RIGHT — details */}
-        <div className="w-full lg:w-[40%] bg-linear-to-b from-gray-900 to-gray-800 p-8 flex flex-col justify-between">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-3 text-white">{displayName}</h1>
-            <p className="text-emerald-300 font-semibold text-2xl mb-1">₹{product.price.toFixed(2)}</p>
-            {product.origin && (
-              <p className="text-slate-400 text-xs mb-4 flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                {product.origin}
-              </p>
-            )}
-            <p className="text-slate-300 text-sm leading-relaxed mb-6">
-              {product.description ?? "Premium organic produce sourced directly from verified FPOs. Nutritious, gluten-free, and sustainably cultivated."}
-            </p>
-
-            {/* Quantity + CTA */}
-            <div className="flex flex-wrap items-center gap-4 mb-6">
-              <div className="flex items-center gap-2 bg-gray-800/60 rounded-lg px-3 py-1 border border-gray-700">
-                <button onClick={() => setQty(q => Math.max(1, q - 1))} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white font-bold">-</button>
-                <span className="px-3 text-sm font-mono text-white">{qty}</span>
-                <button onClick={() => setQty(q => q + 1)} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white font-bold">+</button>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-2">
+          {/* ── Gallery ── */}
+          <div className="lg:sticky lg:top-20 lg:self-start">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+              <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-linear-to-br from-slate-50 to-emerald-50/50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={images[activeIndex]}
+                  alt={displayName}
+                  className="h-full w-full object-contain mix-blend-multiply p-4"
+                  onError={(e) => { (e.target as HTMLImageElement).src = placeholder(displayName); }}
+                />
               </div>
-
-              <button onClick={handleAddToCart}
-                className={`px-5 py-3 rounded-lg font-semibold shadow-md transition-all ${added ? "bg-green-400 text-black" : isInCart(product.id) ? "bg-emerald-700 text-white" : "bg-emerald-500 hover:bg-emerald-400 text-black"}`}>
-                {added ? "Added!" : isInCart(product.id) ? "In Cart" : "Add to Cart"}
-              </button>
-
-              <button onClick={handleBuyNow}
-                className="px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all shadow-md">
-                Buy Now
-              </button>
-            </div>
-
-            <ul className="text-sm text-slate-300 space-y-2 mt-4 border-t border-gray-700/50 pt-4">
-              <li><strong className="text-slate-100">Product ID:</strong><span className="ml-2 font-mono text-xs">{product.id}</span></li>
-              {product.category && <li><strong className="text-slate-100">Category:</strong><span className="ml-2">{product.category}</span></li>}
-              <li><strong className="text-slate-100">Availability:</strong><span className="ml-2 text-emerald-300">In Stock</span></li>
-              <li><strong className="text-slate-100">Seller:</strong><span className="ml-2">Verified FPO</span></li>
-            </ul>
-          </div>
-
-          {/* Related marquee */}
-          {related.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-slate-200 mb-3 font-semibold text-sm uppercase tracking-wider">Related Products</h3>
-              <div className="relative overflow-hidden rounded-lg border border-gray-700/30"
-                style={{ "--marquee-duration": marqueeDuration } as React.CSSProperties}>
-                <div className="flex gap-4 will-change-transform"
-                  style={{ animation: `marquee ${marqueeDuration} linear infinite` }}>
-                  {[...related, ...related].map((r, idx) => (
-                    <button key={`${r.id}-${idx}`} onClick={() => router.push(`/products/${r.id}`)}
-                      className="min-w-[150px] bg-gray-800/60 rounded-lg p-3 shrink-0 hover:-translate-y-2 transition text-left">
-                      <div className="relative w-full h-24 rounded-md overflow-hidden bg-gray-700/40">
-                        <Image src={r.image} alt={r.title} fill className="object-cover" />
-                      </div>
-                      <div className="mt-2 text-sm text-slate-200 line-clamp-2">{r.title}</div>
-                      {typeof r.price === "number" && <div className="text-emerald-300 font-semibold mt-1">₹{r.price}</div>}
+              {images.length > 1 && (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {images.slice(0, 6).map((src, i) => (
+                    <button
+                      key={`${src}-${i}`}
+                      onClick={() => setActiveIndex(i)}
+                      className={`relative h-16 w-16 overflow-hidden rounded-lg border-2 bg-white transition-all ${i === activeIndex ? "border-emerald-500 shadow-sm" : "border-slate-200 hover:border-slate-300"}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={src}
+                        alt={`${displayName} thumbnail ${i + 1}`}
+                        className="h-full w-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = placeholder(displayName); }}
+                      />
                     </button>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <style jsx>{`
-        @keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-        .relative:hover .will-change-transform { animation-play-state: paused; }
-      `}</style>
+          {/* ── Details ── */}
+          <div className="flex flex-col">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              {product.category && (
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">{product.category}</span>
+              )}
+              <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">{displayName}</h1>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-slate-900">₹{product.price.toFixed(2)}</span>
+                <span className="text-sm font-medium text-slate-500">/ kg</span>
+              </div>
+
+              {product.origin && (
+                <p className="mt-2 flex items-center gap-1 text-sm text-slate-500">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                  {product.origin}
+                </p>
+              )}
+
+              <p className="mt-5 text-sm leading-relaxed text-slate-600">
+                {product.description ??
+                  "Premium produce sourced directly from verified farmer collectives and SHGs. Nutritious, naturally cultivated, and quality-checked before it reaches your kitchen."}
+              </p>
+
+              {/* Quantity + CTA */}
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white hover:text-slate-900">−</button>
+                  <span className="w-8 text-center text-sm font-bold tabular-nums">{qty}</span>
+                  <button onClick={() => setQty((q) => q + 1)} aria-label="Increase quantity" className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white hover:text-slate-900">+</button>
+                </div>
+
+                <button
+                  onClick={handleAddToCart}
+                  className={`inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold shadow-sm transition-all active:scale-[0.98] ${added ? "bg-emerald-500 text-white" : isInCart(product.id) ? "bg-emerald-700 text-white hover:bg-emerald-800" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+                >
+                  {added ? "Added to cart ✓" : isInCart(product.id) ? "In cart — add more" : "Add to cart"}
+                </button>
+
+                <button
+                  onClick={handleBuyNow}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-600 px-6 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50"
+                >
+                  Buy now
+                </button>
+              </div>
+
+              {/* Meta */}
+              <dl className="mt-6 space-y-2 border-t border-slate-100 pt-5 text-sm">
+                <div className="flex gap-2"><dt className="font-semibold text-slate-700">Product ID:</dt><dd className="font-mono text-xs text-slate-500">{product.id}</dd></div>
+                {product.category && <div className="flex gap-2"><dt className="font-semibold text-slate-700">Category:</dt><dd className="text-slate-500">{product.category}</dd></div>}
+                <div className="flex gap-2"><dt className="font-semibold text-slate-700">Availability:</dt><dd className="font-semibold text-emerald-600">In Stock</dd></div>
+                <div className="flex gap-2"><dt className="font-semibold text-slate-700">Seller:</dt><dd className="text-slate-500">SHG-verified supplier</dd></div>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Related products ── */}
+        {related.length > 0 && (
+          <div className="mt-10">
+            <h3 className="mb-4 text-lg font-extrabold tracking-tight text-slate-900">Related products</h3>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {related.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => router.push(`/products/${r.id}`)}
+                  className="group w-44 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-1 hover:border-emerald-300 hover:shadow-md"
+                >
+                  <div className="flex aspect-square items-center justify-center overflow-hidden bg-linear-to-br from-slate-50 to-emerald-50/50 p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={r.image || placeholder(r.title)}
+                      alt={r.title}
+                      className="h-full w-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
+                      onError={(e) => { (e.target as HTMLImageElement).src = placeholder(r.title); }}
+                    />
+                  </div>
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-sm font-bold text-slate-800 group-hover:text-emerald-700">{r.title}</p>
+                    {typeof r.price === "number" && <p className="mt-1 text-sm font-extrabold text-slate-900">₹{r.price.toFixed(0)}</p>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
